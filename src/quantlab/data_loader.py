@@ -49,6 +49,10 @@ def load_prices(
     prices = raw["Close"]
     if isinstance(prices, pd.Series):  # single ticker
         prices = prices.to_frame(tickers[0])
+    cleaned = validate_prices(prices)
+    if len(cleaned) < len(prices):
+        log.warning("validation dropped %d of %d rows", len(prices) - len(cleaned), len(prices))
+    prices = cleaned
     prices = validate_prices(prices)
     path.parent.mkdir(parents=True, exist_ok=True)
     prices.to_parquet(path)
