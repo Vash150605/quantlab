@@ -1,5 +1,7 @@
 """Measure how far returns are from a Normal distribution."""
 from __future__ import annotations
+from statsmodels.tsa.stattools import acf
+from statsmodels.stats.diagnostic import acorr_ljungbox
 
 import numpy as np
 import pandas as pd
@@ -35,3 +37,26 @@ def tail_counts(returns: pd.DataFrame, k: float = 4.0) -> pd.DataFrame:
     out = pd.DataFrame({"observed": observed, "expected": expected})
     out["ratio"] = out["observed"] / out["expected"]
     return out
+
+def rolling_vol(returns: pd.DataFrame, window: int = 21, periods: int = 252) -> pd.DataFrame:
+    """Annualised volatility over a moving window (21 trading days is about a month)."""
+    return returns.rolling(window).std() * np.sqrt(periods)
+
+
+def autocorr_table(returns: pd.DataFrame, lags: int = 10) -> pd.DataFrame:
+    """Autocorrelation of returns and of squared returns, with Ljung-Box p-values.
+
+    acf_ret / acf_sq: lag-1 autocorrelation of returns / squared returns.
+    lb_p_ret / lb_p_sq: Ljung-Box p-value over the first `lags` lags.
+    Null of Ljung-Box: no autocorrelation. A small p-value means autocorrelation exists.
+    """
+    rows = {}
+    for col in returns.columns:
+        x = returns[col].dropna()
+        rows[col] = {
+            "acf_ret": acf(x, nlags=1)[1],
+            "acf_sq": acf(x**2, nlags=1)[1],
+            "lb_p_ret": acorr_ljungbox(x, lags=[lags])["lb_pvalue"].iloc[0],
+            "lb_p_sq": acorr_ljungbox(x**2, lags=[lags])["lb_pvalue"].iloc[0],
+        }
+    return pd.DataFrame.from_dict(rows, orient="index")
