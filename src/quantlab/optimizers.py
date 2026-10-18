@@ -73,3 +73,19 @@ def frontier(mu: np.ndarray, cov: np.ndarray, targets: np.ndarray):
     W = np.array([target_return_weights(mu, cov, m) for m in targets])
     vols = np.sqrt(np.einsum("ij,jk,ik->i", W, cov, W))
     return vols, W
+
+def min_variance_long_only(cov: np.ndarray) -> np.ndarray:
+    """Minimum variance with sum(w) = 1 and 0 <= w <= 1. No closed form; solved by SLSQP."""
+    p = len(cov)
+    res = minimize(
+        lambda w: w @ cov @ w,
+        np.ones(p) / p,
+        jac=lambda w: 2 * cov @ w,
+        constraints=[{"type": "eq", "fun": lambda w: w.sum() - 1.0}],
+        bounds=[(0.0, 1.0)] * p,
+        method="SLSQP",
+        options={"ftol": 1e-12, "maxiter": 500},
+    )
+    if not res.success:
+        raise RuntimeError(f"solver failed: {res.message}")
+    return np.clip(res.x, 0.0, None) / np.clip(res.x, 0.0, None).sum()
