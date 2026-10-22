@@ -45,7 +45,7 @@ The first call to `load_prices()` downloads data from Yahoo Finance and caches i
 
 ## Data
 
-10/11/2026: (fill in: see the timestamp of the file in `data/processed`)
+11 October 2026: (fill in: see the timestamp of the file in `data/processed`)
 Universe: 25 US large-cap stocks (AAPL, MSFT, AMZN, JPM, WFC, BAC, XOM, CVX, PG, KO, PEP, WMT,
 HD, MCD, DIS, NKE, UNH, AMGN, GILD, INTC, CSCO, ORCL, CAT, UNP, NEE) and the S&P 500 (^GSPC)
 Period: 2000-01-03 to 2025-12-30 (6,538 prices, 6,537 daily returns)

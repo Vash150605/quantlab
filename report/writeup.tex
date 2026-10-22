@@ -36,14 +36,14 @@ within the sampling noise of the Sharpe ratios.
 \section{Question and data}
 The question is how non-Normal real returns are, and whether mean--variance optimisation survives
 estimation error. The data are daily adjusted closing prices (adjusted for splits and dividends)
-downloaded from Yahoo Finance with \texttt{yfinance} on [10/11/2026] for 25 US large-cap
+downloaded from Yahoo Finance with \texttt{yfinance} on 11 October 2026 for 25 US large-cap
 stocks and the S\&P~500 index: 6{,}538 prices from 3 January 2000 to 30 December 2025, hence 6{,}537
 daily returns. Log returns are used for statistics and simple returns for portfolio arithmetic.
 Means are annualised by 252 and volatilities by $\sqrt{252}$.
 
 The data were checked before use. All 26 series are complete from the first date, no series has a run of
 five or more identical prices, and there is one calendar gap longer than five days (17 September 2001,
-after the post-attack market closure). About 60 daily moves exceed 20\% in absolute log return. They
+after the post-attack market closure). About 64 daily moves exceed 20\% in absolute log return. They
 cluster at known events, such as Apple on 29 September 2000 ($-0.73$), the banks in 2008--09 and several
 stocks in March 2020, and none resembles an unadjusted split, so nothing was removed.
 
@@ -54,7 +54,9 @@ days in 2000, and between 19 and 28 for BAC, WFC, HD, UNH and CVX; the S\&P~500 
 Jarque--Bera test rejects Normality for all 26 series. A Normal predicts 0.41 days beyond four standard
 deviations per series in the sample; the data have between 27 and 64, about 65 to 155 times as many.
 A Student-$t$ fitted by maximum likelihood has between 2.2 and 3.6 degrees of freedom for every series
-(2.6 for the S\&P~500), and Figure~\ref{fig:qq} shows it follows the index tails far better than a Normal.
+(2.6 for the S\&P~500), and and Figure~\ref{fig:qq} shows it follows the bulk and moderate tails of the index far better than
+a Normal, although the fit is imperfect in the far tails, where the few most extreme observations
+are smaller than the fitted $t$ predicts.
 With four or fewer degrees of freedom the fourth moment is infinite, so sample kurtosis is not a stable
 quantity.
 
