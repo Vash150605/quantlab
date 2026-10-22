@@ -60,3 +60,28 @@ def autocorr_table(returns: pd.DataFrame, lags: int = 10) -> pd.DataFrame:
             "lb_p_sq": acorr_ljungbox(x**2, lags=[lags])["lb_pvalue"].iloc[0],
         }
     return pd.DataFrame.from_dict(rows, orient="index")
+
+def fit_t(returns: pd.DataFrame) -> pd.DataFrame:
+    """Student-t fit per column by maximum likelihood: degrees of freedom, location, scale.
+
+    Small df means fat tails (a Normal is the limit df -> infinity).
+    """
+    rows = {
+        col: dict(zip(["df", "loc", "scale"], stats.t.fit(returns[col].dropna())))
+        for col in returns.columns
+    }
+    return pd.DataFrame.from_dict(rows, orient="index")
+
+
+def avg_pairwise_corr(returns: pd.DataFrame) -> float:
+    """Mean of the off-diagonal entries of the correlation matrix."""
+    C = returns.corr().to_numpy()
+    p = len(C)
+    return float((C.sum() - p) / (p * (p - 1)))
+
+
+def corr_by_period(returns: pd.DataFrame, periods: dict) -> pd.Series:
+    """Average pairwise correlation inside each (start, end) period of `periods`."""
+    return pd.Series(
+        {name: avg_pairwise_corr(returns.loc[a:b]) for name, (a, b) in periods.items()}
+    )
