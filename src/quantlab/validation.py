@@ -23,3 +23,19 @@ def stale_runs(returns: pd.DataFrame, min_run: int = 5) -> pd.DataFrame:
         if flagged.any():
             rows.append((ticker, int(flagged.sum())))
     return pd.DataFrame(rows, columns=["ticker", "stale_days"])
+
+def calendar_gaps(prices: pd.DataFrame, max_days: int = 5) -> pd.DataFrame:
+    """Dates that follow a gap of more than max_days calendar days (holidays are 1-4)."""
+    gaps = prices.index.to_series().diff().dt.days
+    big = gaps[gaps > max_days]
+    return pd.DataFrame({"date": big.index, "gap_days": big.to_numpy()})
+
+
+def first_valid_dates(prices: pd.DataFrame) -> pd.DataFrame:
+    """Each ticker's first valid date and fraction of missing values."""
+    return pd.DataFrame(
+        {
+            "first_date": prices.apply(lambda s: s.first_valid_index()),
+            "missing_frac": prices.isna().mean(),
+        }
+    )
