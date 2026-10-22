@@ -1,0 +1,281 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{microtype}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+
+% Figures are made by make_figures.py into figures/. If one is missing, a box is shown instead.
+\newcommand{\safeinclude}[2]{\IfFileExists{#1}{\includegraphics[width=#2]{#1}}%
+  {\fbox{\parbox{#2}{\centering\vspace{2em}Missing figure: \texttt{\detokenize{#1}}\vspace{2em}}}}}
+
+\newcommand{\ones}{\mathbf{1}}
+\newcommand{\Sig}{\Sigma}
+
+\title{Non-Normal returns and estimation error in mean--variance portfolios}
+\author{Vash Ansari}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Daily stock returns have heavy tails, clustered volatility and correlations that rise in crises, yet
+mean--variance optimisation assumes that means and covariances are known. Using 25 large US stocks and
+the S\&P~500 from 2000 to 2025, I document these departures from Normality, derive the Markowitz
+solution by Lagrange multipliers and verify it numerically, measure estimation error with random matrix
+theory and a simulation, and compare 1/N, minimum-variance and shrinkage portfolios in a walk-forward
+backtest with transaction costs. No optimised strategy reliably beat 1/N out of sample. Ledoit--Wolf
+shrinkage and a long-only constraint both improved on the sample covariance, but the differences are
+within the sampling noise of the Sharpe ratios.
+\end{abstract}
+
+\section{Question and data}
+The question is how non-Normal real returns are, and whether mean--variance optimisation survives
+estimation error. The data are daily adjusted closing prices (adjusted for splits and dividends)
+downloaded from Yahoo Finance with \texttt{yfinance} on [10/11/2026] for 25 US large-cap
+stocks and the S\&P~500 index: 6{,}538 prices from 3 January 2000 to 30 December 2025, hence 6{,}537
+daily returns. Log returns are used for statistics and simple returns for portfolio arithmetic.
+Means are annualised by 252 and volatilities by $\sqrt{252}$.
+
+The data were checked before use. All 26 series are complete from the first date, no series has a run of
+five or more identical prices, and there is one calendar gap longer than five days (17 September 2001,
+after the post-attack market closure). About 60 daily moves exceed 20\% in absolute log return. They
+cluster at known events, such as Apple on 29 September 2000 ($-0.73$), the banks in 2008--09 and several
+stocks in March 2020, and none resembles an unadjusted split, so nothing was removed.
+
+\section{Returns are not Normal}
+\paragraph{Heavy tails.}
+Excess kurtosis (zero for a Normal) is 114.6 for Apple and 89.0 for Procter \& Gamble, driven by single
+days in 2000, and between 19 and 28 for BAC, WFC, HD, UNH and CVX; the S\&P~500 has 10.6. The
+Jarque--Bera test rejects Normality for all 26 series. A Normal predicts 0.41 days beyond four standard
+deviations per series in the sample; the data have between 27 and 64, about 65 to 155 times as many.
+A Student-$t$ fitted by maximum likelihood has between 2.2 and 3.6 degrees of freedom for every series
+(2.6 for the S\&P~500), and Figure~\ref{fig:qq} shows it follows the index tails far better than a Normal.
+With four or fewer degrees of freedom the fourth moment is infinite, so sample kurtosis is not a stable
+quantity.
+
+\begin{figure}[ht]
+\centering
+\safeinclude{figures/fig1_qq.png}{0.95\textwidth}
+\caption{QQ plots of S\&P~500 daily log returns against a Normal (left) and a fitted Student-$t$ (right).}
+\label{fig:qq}
+\end{figure}
+
+\paragraph{Volatility clustering.}
+Returns themselves are almost uncorrelated: the average lag-1 autocorrelation is $-0.049$, which is
+statistically detectable in 25 of 26 series with 6{,}537 observations but explains about 0.25\% of the
+variance of the next return. Squared returns are very different: the average lag-1 autocorrelation is
+0.193 and the Ljung--Box test (10 lags) rejects independence for all 26 series. Large moves follow large
+moves; Figure~\ref{fig:clust} shows the slowly decaying autocorrelation of $|r|$ and the volatility
+regimes of 2000--02, 2008--09 and 2020.
+
+\begin{figure}[ht]
+\centering
+\safeinclude{figures/fig2_clustering.png}{\textwidth}
+\caption{S\&P~500 rolling 21-day volatility (left) and autocorrelation of absolute returns (right).}
+\label{fig:clust}
+\end{figure}
+
+\paragraph{Correlations in crises.}
+The average pairwise correlation of the 25 stocks is 0.26 in 2006--07 and 0.30 in 2019, but 0.63 from
+September 2008 to March 2009 and 0.72 from February to April 2020, while average volatility rises from
+about 20\% to 72--80\%. Part of this increase may come from selecting high-volatility windows rather than
+from a change in the underlying relationship \cite{forbes2002}, and the windows are short, so the figures
+are indicative.
+
+\section{Mean--variance optimisation}
+Let $\mu$ be the vector of expected returns, $\Sig$ the covariance matrix and $w$ the weights. The
+minimum-variance portfolio with expected return $m$ solves
+\[
+\min_w \tfrac12 w^\top \Sig w \quad\text{subject to}\quad \ones^\top w = 1,\ \ \mu^\top w = m .
+\]
+The Lagrangian is $L = \tfrac12 w^\top\Sig w - \lambda(\ones^\top w - 1) - \gamma(\mu^\top w - m)$, and
+$\partial L/\partial w = \Sig w - \lambda\ones - \gamma\mu = 0$ gives
+$w = \Sig^{-1}(\lambda\ones + \gamma\mu)$. With
+$A = \ones^\top\Sig^{-1}\ones$, $B = \ones^\top\Sig^{-1}\mu$, $C = \mu^\top\Sig^{-1}\mu$ and
+$D = AC - B^2$, substituting into the two constraints gives $\lambda A + \gamma B = 1$ and
+$\lambda B + \gamma C = m$, so
+\[
+\lambda = \frac{C - Bm}{D},\qquad \gamma = \frac{Am - B}{D}.
+\]
+Without the return constraint ($\gamma = 0$, $\lambda = 1/A$) the global minimum-variance portfolio is
+$w = \Sig^{-1}\ones/(\ones^\top\Sig^{-1}\ones)$. The variance along the frontier is
+$\sigma^2(m) = w^\top\Sig w = \lambda + \gamma m = (Am^2 - 2Bm + C)/D$, a parabola in $m$, so the
+frontier is a hyperbola in $(\sigma, m)$ with its leftmost point at $m = B/A$, $\sigma^2 = 1/A$. The
+maximum-Sharpe (tangency) portfolio satisfies $\Sig w \propto (\mu - r_f\ones)$, hence
+$w \propto \Sig^{-1}(\mu - r_f\ones)$ rescaled to sum to one. This is valid only when
+$\ones^\top\Sig^{-1}(\mu - r_f\ones) > 0$, and the weights explode as that sum approaches zero.
+
+The closed form was implemented with linear solves (never explicit inverses) and checked against a
+numerical solver (SLSQP): the largest difference in any weight on the 25 stocks was $5.1\times10^{-6}$.
+On the full sample, the minimum-variance portfolio has an annualised volatility of 14.9\%, below every
+stock, with a return of 12.2\%. The tangency portfolio (with $r_f = 0$) is extreme: 10 negative weights,
+weights from $-18\%$ to $+33\%$, and gross exposure of 3.05 (about 203\% long and 103\% short). Its
+weights follow the estimated means, whose standard error is about six percentage points for a stock with
+30\% volatility over 26 years, comparable to the whole spread of means in the sample.
+
+\section{Estimation error}
+\paragraph{Random matrix theory.}
+For $n$ observations of $p$ independent variables with $q = p/n$, the eigenvalues of the sample
+correlation matrix fall between $(1-\sqrt q)^2$ and $(1+\sqrt q)^2$ (Marchenko--Pastur
+\cite{marchenko1967}). In the last 250 days ($q = 0.10$, upper edge 1.73) only two eigenvalues of the
+stock correlation matrix lie above the edge (7.94 and 3.41); in the full sample (upper edge 1.13) three
+do (9.31, 1.86 and 1.57). Everything inside the bulk is indistinguishable from noise
+(Figure~\ref{fig:mp}).
+
+\begin{figure}[ht]
+\centering
+\safeinclude{figures/fig3_mp.png}{0.7\textwidth}
+\caption{Eigenvalues of the sample correlation matrix (full sample) against the Marchenko--Pastur density
+for pure noise. The largest eigenvalue, the market factor, lies far to the right.}
+\label{fig:mp}
+\end{figure}
+
+\paragraph{Shrinkage.}
+The Ledoit--Wolf estimator \cite{ledoit2004} shrinks the sample covariance $S$ towards a scaled identity,
+$\Sigma^\ast = \delta\, m I + (1-\delta) S$ with $m = \operatorname{tr}(S)/p$ and a data-driven
+$\delta\in[0,1]$. My implementation matches scikit-learn exactly. The intensity is $\delta = 0.139$ with
+250 days and 0.006 with the full sample, and the condition number falls from 109 to 34 in the short
+window.
+
+\paragraph{Simulation with a known truth.}
+I drew data from a one-factor covariance matrix with 25 assets (500 repetitions per $n$) and, for each
+estimate, built minimum-variance weights and measured their true variance relative to the best
+achievable. Table~\ref{tab:sim} shows that estimation error costs 69\% extra variance at $n = 60$ with the
+sample covariance, 34\% with Ledoit--Wolf, and falls towards zero as $n$ grows. The EWMA estimate
+($\lambda = 0.94$, effective sample about 17 days) stays near 1.95 at every $n$ because its effective sample
+is smaller than the number of assets and the simulated covariance is constant.
+
+\begin{table}[ht]
+\centering
+\caption{True variance of minimum-variance portfolios relative to the optimum (1 is perfect).}
+\label{tab:sim}
+\begin{tabular}{rccc}
+\toprule
+$n$ & Sample & Ledoit--Wolf & EWMA \\
+\midrule
+60 & 1.689 & 1.335 & 1.984 \\
+120 & 1.259 & 1.196 & 1.948 \\
+250 & 1.109 & 1.098 & 1.941 \\
+500 & 1.051 & 1.048 & 1.954 \\
+1000 & 1.024 & 1.023 & 1.939 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Out-of-sample backtest}
+\paragraph{Design.}
+Each strategy is run walk-forward on the simple returns of the 25 stocks. Every 21 trading days the
+weights are computed from the previous 504 days only (rows $t-504,\dots,t-1$ for a rebalance on day $t$)
+and applied from day $t$; between rebalances they drift with returns. A transaction cost of 10 basis
+points of turnover is deducted. The settings were fixed before looking at results. The strategies are 1/N;
+minimum variance with the sample covariance; minimum variance with the Ledoit--Wolf covariance, with and
+without a long-only constraint; and a tangency-type portfolio using Ledoit--Wolf covariance and means
+shrunk halfway to their cross-sectional average ($k = 0.5$). The last falls back to minimum variance when
+the tangency formula is invalid or gross exposure would exceed 3, which happened at 152 of 288
+rebalances. Tests check that changing a future return cannot alter any earlier result.
+
+\begin{table}[ht]
+\centering
+\caption{Backtest results, net of 10 bps costs (window 504 days, monthly rebalancing).}
+\label{tab:main}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Strategy & Return & Vol. & Sharpe & Max DD & Turnover/yr & Gross Sharpe \\
+\midrule
+1/N                 & 14.6\% & 18.6\% & 0.823 & $-43.8\%$ & 0.58 & 0.826 \\
+MinVar, sample      &  7.5\% & 14.5\% & 0.571 & $-40.2\%$ & 3.30 & 0.594 \\
+MinVar, LW          &  8.0\% & 14.4\% & 0.609 & $-37.5\%$ & 2.83 & 0.629 \\
+MinVar, LW long-only&  9.5\% & 14.5\% & 0.698 & $-35.3\%$ & 1.47 & 0.708 \\
+Shrunk MV           & 11.0\% & 16.3\% & 0.725 & $-37.5\%$ & 8.43 & 0.777 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results.}
+Equal weighting has the best Sharpe ratio (0.823) and ranks first in every sensitivity setting
+(Table~\ref{tab:sens}), although it also has the deepest drawdown. The minimum-variance strategies lower
+volatility from 18.6\% to about 14.5\% but give up more return than they save in risk. Ledoit--Wolf
+beats the sample covariance in all four settings (by 0.03 to 0.06 of Sharpe) with lower turnover, and the
+long-only constraint helps more still (0.698 against 0.609, half the turnover). The shrunk mean--variance
+strategy has the highest turnover by far (8.4 a year), loses 0.05 of Sharpe to costs, and its rank moves
+between second and fourth. In sub-periods, 1/N's lead comes largely from 2020--2025
+(Table~\ref{tab:per}); in 2010--2019 all five strategies lie between 1.10 and 1.20.
+
+\begin{figure}[ht]
+\centering
+\safeinclude{figures/fig4_backtest.png}{0.85\textwidth}
+\caption{Walk-forward wealth and drawdown of the five strategies, net of costs.}
+\label{fig:bt}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\caption{Net Sharpe ratio under alternative settings (window / rebalancing days / cost in bps).}
+\label{tab:sens}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Setting & 1/N & MinVar sample & MinVar LW & LW long-only & Shrunk MV \\
+\midrule
+252 / 21 / 10 & 0.805 & 0.566 & 0.625 & 0.698 & 0.621 \\
+504 / 63 / 10 & 0.827 & 0.579 & 0.613 & 0.699 & 0.745 \\
+504 / 21 / 0  & 0.826 & 0.594 & 0.629 & 0.708 & 0.777 \\
+504 / 21 / 30 & 0.817 & 0.526 & 0.570 & 0.677 & 0.620 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Net Sharpe ratio by sub-period (main settings).}
+\label{tab:per}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Period & 1/N & MinVar sample & MinVar LW & LW long-only & Shrunk MV \\
+\midrule
+2002--2009 & 0.606 & 0.337 & 0.370 & 0.509 & 0.643 \\
+2010--2019 & 1.188 & 1.122 & 1.157 & 1.204 & 1.100 \\
+2020--2025 & 0.768 & 0.308 & 0.357 & 0.438 & 0.411 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{How much weight these differences carry.}
+Over 23.9 years the approximate standard error of each Sharpe ratio is 0.22 to 0.24 (an i.i.d.
+approximation). The lead of 1/N over the other strategies is 0.10 to 0.25, so at most about one standard
+error. The strategies are correlated, which makes differences more precise than this, but I did not test
+that, so the data show that nothing beat 1/N, not that 1/N is better.
+
+\section{Conclusion and limitations}
+Real returns have heavy tails, clustered volatility and crisis correlations, and these features make
+sample means and covariances unreliable inputs. Shrinkage and constraints reduce the damage, in line with
+the evidence that estimation error limits the gains from optimisation \cite{demiguel2009}, but a simple
+equal-weight rule was not beaten here.
+
+The limitations are the following. (i) \emph{Survivorship bias}: the stocks are today's large companies,
+so failures are missing and results are flattered, possibly 1/N more than the others. (ii) One market, one
+universe of 25 stocks and one 26-year period. (iii) The simulation assumes Normal data and a constant
+one-factor covariance. (iv) Sharpe ratios have large standard errors. (v) Window, rebalancing, cost and
+shrinkage constants were fixed in advance, and the sensitivity tables show how much rankings move.
+(vi) Costs are proportional to turnover only: no market impact, borrowing cost for shorts or taxes, and
+the risk-free rate is zero. (vii) The shrunk mean--variance strategy is partly minimum variance.
+
+\begin{thebibliography}{9}
+\bibitem{demiguel2009} V.~DeMiguel, L.~Garlappi and R.~Uppal. Optimal versus naive diversification: how
+inefficient is the 1/N portfolio strategy? \emph{Review of Financial Studies}, 22(5):1915--1953, 2009.
+\bibitem{forbes2002} K.~Forbes and R.~Rigobon. No contagion, only interdependence: measuring stock
+market comovements. \emph{Journal of Finance}, 57(5):2223--2261, 2002.
+\bibitem{ledoit2004} O.~Ledoit and M.~Wolf. A well-conditioned estimator for large-dimensional
+covariance matrices. \emph{Journal of Multivariate Analysis}, 88(2):365--411, 2004.
+\bibitem{marchenko1967} V.~A.~Marchenko and L.~A.~Pastur. Distribution of eigenvalues for some sets of
+random matrices. \emph{Mathematics of the USSR-Sbornik}, 1(4):457--483, 1967.
+\end{thebibliography}
+
+\end{document}
