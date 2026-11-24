@@ -1,10 +1,11 @@
-"""Mean, covariance and correlation: slow literal versions and fast vectorised ones."""
+"""Mean, covariance and correlation: a slow version (loops) and a fast version (matrices)."""
 from __future__ import annotations
 
 import numpy as np
 
 
 def _check(X: np.ndarray) -> np.ndarray:
+    """Make sure X is a 2-D float array with at least 2 rows."""
     X = np.asarray(X, dtype=float)
     if X.ndim != 2:
         raise ValueError("X must be 2-D (n observations x p variables)")
@@ -21,19 +22,30 @@ def cov_loops(X: np.ndarray) -> np.ndarray:
     """
     X = _check(X)
     n, p = X.shape
-    mean = [sum(X[t, i] for t in range(n)) / n for i in range(p)]
+
+    # mean of each column
+    mean = []
+    for i in range(p):
+        total = 0.0
+        for t in range(n):
+            total += X[t, i]
+        mean.append(total / n)
+
+        # covariance of every pair of columns
     S = np.zeros((p, p))
     for i in range(p):
         for j in range(p):
-            S[i, j] = sum((X[t, i] - mean[i]) * (X[t, j] - mean[j]) for t in range(n)) / (n - 1)
+            total = 0.0
+            for t in range(n):
+                total += (X[t, i] - mean[i]) * (X[t, j] - mean[j])
+            S[i, j] = total / (n - 1)
     return S
 
-
 def cov_vec(X: np.ndarray) -> np.ndarray:
-    """Same quantity in matrix form: S = Xc' Xc / (n-1)."""
+    """Same answer with matrices: S = Xc' Xc / (n-1), where Xc is X minus its column means."""
     X = _check(X)
-    Xc = X - X.mean(axis=0)
-    return Xc.T @ Xc / (len(X) - 1)
+    centred = X - X.mean(axis=0)
+    return centred.T @ centred / (len(X) - 1)
 
 
 def corr_from_cov(S: np.ndarray) -> np.ndarray:
